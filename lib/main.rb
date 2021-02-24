@@ -7,7 +7,7 @@ module Display
   def display_instruction
     "The Codemaker selects a 4-digit code, using numbers from 1 - 6:
     1234
-     (the same number can be used more than once).
+     (the same number can not be used more than once).
 
      Each turn, the Codebreaker tries to guess the code by inputting 4 digits.
      (Just type them and press enter. They can be separated by spaces, commas, or not at all.)
@@ -16,8 +16,7 @@ module Display
      BBWX
      'B' indicates the correct digit in the correct position.
      'W' indicates a correct digit, but in the wrong position.
-     'X' indicates an incorrect digit.Note that the hints are not in order.
-     For example, a hint of 'B' means that you guessed one digit correctly - but it doesn't tell you which"
+     'Empty space' indicates an incorrect digit.Note that the hints are not in order."
    end
 
   def display_require_instruction
@@ -36,6 +35,10 @@ module Display
 
    def display_enter_guess
     "Enter your guess"
+   end 
+
+   def display_closure
+    puts "Would like to give it another try? y/n"
    end 
     
 end
@@ -61,6 +64,10 @@ class Board
     @numbers = number.split("")
   end 
 
+  def update_for_comp(number)
+    @numbers = number
+  end 
+
   
 end
         
@@ -68,6 +75,19 @@ end
 # contains all the states for codemaker
 
 class CodemakerUser
+  attr_accessor :code
+
+  def initialize
+    @code = nil
+  end 
+
+  def input_code(input)
+    @code = input.split("")
+  end 
+
+  def make_elements_int
+    @code.map!{|str| str.to_i}
+  end 
  
 end
 
@@ -87,8 +107,7 @@ class CodebreakerUser
   def make_elements_int
     @guess.map!{|string| string.to_i}
   end
-  
-  
+
 end
 
 # contains the states and methods for computer codemaker
@@ -104,6 +123,33 @@ end
 # contains the states and methods for copmuter codereader 
 
 class CodereaderComp
+  attr_accessor :guess
+  CONSTANTS = [1, 2, 3, 4, 5, 6]
+
+  def initialize
+    @guess = nil
+  end
+
+  def guess_random_code
+    @guess = (1..6).to_a.shuffle.take(4)
+  end 
+
+  
+  def guess_based_hint(hints)
+    hints.each_with_index do |hint, inx|
+      if hint == "B"
+         @guess[inx] = @guess[inx]
+      elsif hint == " "
+        @guess[inx] = rand 1..6
+      else 
+        if inx + 1 > @guess.length - 1
+        @guess[inx], @guess[inx - 1] =  @guess[inx - 1], @guess[inx]
+        else 
+        @guess[inx], @guess[inx + 1] =  @guess[inx + 1], @guess[inx]
+        end 
+      end 
+    end 
+  end
   
 end
 
@@ -179,7 +225,7 @@ class Game
     user_reader.input_code(guess_input)
     user_reader.make_elements_int
     board.update_number(guess_input)
-    self.code_comparasion
+    self.code_comparasion(user_reader, comp_maker)
     board.show
     if board.hints == ["B", "B", "B", "B"] && MoveCounter.moves_left >= 0
       puts "WOW! You have broken the code! kicked Comp's ass real nice"
@@ -189,13 +235,38 @@ class Game
      puts "Moves left: #{MoveCounter.moves_left}"
      play_as_reader
      end
-
-    
   end 
 
-  def code_comparasion
-    user_reader.guess.each_with_index do |user_num, user_index|
-      comp_maker.code.each_with_index do |comp_num, comp_index|
+
+  def play_as_maker
+    code_input = gets.chomp
+    user_maker.input_code(code_input)
+    user_maker.make_elements_int
+    comp_reader.guess_random_code
+    board.update_for_comp(comp_reader.guess)
+    self.code_comparasion(comp_reader, user_maker)
+    board.show
+    loop do
+     self.counter = MoveCounter.new
+     puts "Moves left: #{MoveCounter.moves_left}"
+     comp_reader.guess_based_hint(board.hints)
+     board.update_for_comp(comp_reader.guess)
+     self.code_comparasion(comp_reader, user_maker)
+     board.show
+     break if board.hints == ["B", "B", "B", "B"] && MoveCounter.moves_left >= 0 || 
+     board.hints != ["B", "B", "B", "B"] && MoveCounter.moves_left <= 0
+    end 
+    if board.hints == ["B", "B", "B", "B"] && MoveCounter.moves_left >= 0
+      puts "WOW! VM has won the game vie breaking your code"
+    elsif board.hints != ["B", "B", "B", "B"] && MoveCounter.moves_left <= 0
+       puts "VM's digital ass has been kicked! tough one"
+     end
+  end
+end
+
+  def code_comparasion(reader, maker)
+    reader.guess.each_with_index do |user_num, user_index|
+      maker.code.each_with_index do |comp_num, comp_index|
         if user_num == comp_num && user_index == comp_index
           board.hints[user_index] = "B"
         elsif user_num == comp_num && user_index != comp_index
@@ -205,12 +276,42 @@ class Game
     end
   end 
 
+
+
+# lounch the game 
+class Main  
+  attr_accessor :game
+
+  def initialize
+    @game = Game.new
+  end
+
+  def play_the_game
+    game.game_setter
+    if game.user_maker == nil
+      game.play_as_reader
+    else 
+      game.play_as_maker
+    end 
+  end
+
+  def closure
+    game.display_closure
+    input = gets.chomp
+    if input == 'y'
+      self.play_the_game
+    elsif input == 'n'
+      puts "Thanks for playing!"
+    else 
+      puts "Invalid input, please tyr again!"
+      self.closure
+    end 
+  end
+
+  end
+
+  play = Main.new
+  play.play_the_game
+  play.closure
   
-end
-
-
-test_game = Game.new
-
-test_game.game_setter
-test_game.play_as_reader
 
